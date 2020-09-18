@@ -95,6 +95,8 @@ def opt_sch_ABPN(model):
 if __name__ == '__main__':
 
     pretrained = True
+    multi_gpu = True
+
     pretrained_path = 'checkpoints/ABPN/pretrained/ABPN_4x.pth'
 
     train_ds, test_ds, val_ds = get_datasets('datasets/splits/czi',
@@ -107,6 +109,9 @@ if __name__ == '__main__':
     else:
         model = ABPN_v5(1, 32)
 
+    if multi_gpu:
+        model = nn.DataParallel(model)
+
     save_path = 'checkpoints/ABPN/{}'.format('ABPN_4x.pth')
 
-    train(model, train_ds, val_ds, 50, 8, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_path)
+    train(model, train_ds, val_ds, epochs=50, batch_size=8, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_path)
