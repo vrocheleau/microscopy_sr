@@ -22,7 +22,10 @@ if __name__ == "__main__":
     print(username)
 
     ext = 'czi'
-    data_dir = '/home/{}/datasets/microscopy_luke'.format(username)
+    if username == "AM90950":
+        data_dir = '/home/ens/{}/datasets/microscopy_luke'.format(username)
+    else:
+        data_dir = '/home/{}/datasets/microscopy_luke'.format(username)
 
     paths = get_paths(data_dir, ext)
 
