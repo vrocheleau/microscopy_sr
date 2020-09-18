@@ -191,6 +191,23 @@ class ABPN_v5(nn.Module):
                 if m.bias is not None:
                     m.bias.data.zero_()
 
+    def patch_input_dim(self, input_dim, dim):
+        self.feat1 = ConvBlock(input_dim, 2 * dim, 3, 1, 1)
+        self.SR_conv3 = nn.Conv2d(dim, input_dim, 3, 1, 1)
+        self.final_feat1 = ConvBlock(input_dim, 2 * dim, 3, 1, 1)
+        self.final_feat2 = nn.Conv2d(2 * dim, input_dim, 3, 1, 1)
+
+        for m in self.modules():
+            classname = m.__class__.__name__
+            if classname.find('Conv2d') != -1:
+                torch.nn.init.kaiming_normal_(m.weight)
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif classname.find('ConvTranspose2d') != -1:
+                torch.nn.init.kaiming_normal_(m.weight)
+                if m.bias is not None:
+                    m.bias.data.zero_()
+
     def forward(self, x):
         # feature extraction
         bic_x = F.interpolate(x, scale_factor=4, mode='bicubic')

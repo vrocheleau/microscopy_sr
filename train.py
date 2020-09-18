@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 import torch.nn as nn
 from utils import ExpandedRandomSampler
 from torch.optim import SGD, lr_scheduler, Adam
@@ -9,7 +10,7 @@ from copy import deepcopy
 from torch.utils.tensorboard import SummaryWriter
 from datasets.dataloaders import get_datasets
 
-def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_object, model_checkpoint=True):
+def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_object, checkpoint_path=None):
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     model.to(device)
@@ -18,7 +19,7 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
 
     train_loader = DataLoader(train_ds,
                               batch_size=batch_size,
-                              sampler=ExpandedRandomSampler(len(train_ds), multiplier=1), num_workers=6)
+                              sampler=ExpandedRandomSampler(len(train_ds), multiplier=2), num_workers=6)
 
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=6)
 
@@ -49,10 +50,12 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
         # Eval model
         val_metrics = eval(model, val_loader, loss_object, test=False)
 
-        if val_metrics['losses'].mean() <= best_val_loss and model_checkpoint:
+        if val_metrics['losses'].mean() <= best_val_loss:
             best_val_loss = val_metrics['losses'].mean()
             best_state_dict = deepcopy(model.state_dict())
 
+        if checkpoint_path is not None:
+            torch.save(model, checkpoint_path)
 
         print('Val loss: {}'.format(val_metrics['losses'].mean()))
         writer.add_scalar('Loss/val', val_metrics['losses'].mean(), epoch)
@@ -91,9 +94,19 @@ def opt_sch_ABPN(model):
 
 if __name__ == '__main__':
 
+    pretrained = True
+    model_path = '/home/victor/PycharmProjects/microscopy_sr/checkpoints/ABPN/pretrained/ABPN_4x.pth'
+
     train_ds, test_ds, val_ds = get_datasets('/home/victor/PycharmProjects/microscopy_sr/datasets/splits/czi',
-                                             [2], 4, 160, preload=False, augment=True)
+                                             chanels=[2], scale_factor=4, patch_size=160, preload=False, augment=True)
 
-    model = ABPN_v5(1, 32)
+    if pretrained:
+        model = ABPN_v5(3, 32)
+        model.load_state_dict(torch.load((model_path)))
+        model.patch_input_dim(1, 32)
+    else:
+        model = ABPN_v5(1, 32)
 
-    train(model, train_ds, val_ds, 50, 8, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss())
+    save_path = '/home/victor/PycharmProjects/microscopy_sr/checkpoints/ABPN/{}'.format('ABPN_4x.pth')
+
+    train(model, train_ds, val_ds, 50, 8, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_path)
