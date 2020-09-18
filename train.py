@@ -95,18 +95,18 @@ def opt_sch_ABPN(model):
 if __name__ == '__main__':
 
     pretrained = True
-    model_path = '/home/victor/PycharmProjects/microscopy_sr/checkpoints/ABPN/pretrained/ABPN_4x.pth'
+    pretrained_path = 'checkpoints/ABPN/pretrained/ABPN_4x.pth'
 
-    train_ds, test_ds, val_ds = get_datasets('/home/victor/PycharmProjects/microscopy_sr/datasets/splits/czi',
+    train_ds, test_ds, val_ds = get_datasets('datasets/splits/czi',
                                              chanels=[2], scale_factor=4, patch_size=160, preload=False, augment=True)
 
     if pretrained:
         model = ABPN_v5(3, 32)
-        model.load_state_dict(torch.load((model_path)))
+        model.load_state_dict(torch.load((pretrained_path)))
         model.patch_input_dim(1, 32)
     else:
         model = ABPN_v5(1, 32)
 
-    save_path = '/home/victor/PycharmProjects/microscopy_sr/checkpoints/ABPN/{}'.format('ABPN_4x.pth')
+    save_path = 'checkpoints/ABPN/{}'.format('ABPN_4x.pth')
 
     train(model, train_ds, val_ds, 50, 8, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_path)

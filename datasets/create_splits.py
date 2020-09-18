@@ -3,6 +3,7 @@ from sklearn.model_selection import train_test_split
 import csv
 import os
 from utils import *
+import getpass
 
 def write_splits_csv(name, files):
     with open(name, 'w') as out:
@@ -17,8 +18,11 @@ if __name__ == "__main__":
 
     scale_factors = [4, 8, 16]
 
+    username = getpass.getuser()
+    print(username)
+
     ext = 'czi'
-    data_dir = '/home/victor/datasets/microscopy_luke'
+    data_dir = '/home/{}/datasets/microscopy_luke'.format(username)
 
     paths = get_paths(data_dir, ext)
 
