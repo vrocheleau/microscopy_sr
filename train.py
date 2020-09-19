@@ -24,7 +24,7 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=6)
 
     best_val_loss = float('inf')
-    best_state_dict = deepcopy(model.state_dict())
+    best_state_dict = deepcopy(model.module.state_dict())
 
     writer = SummaryWriter()
 
@@ -52,10 +52,10 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
 
         if val_metrics['losses'].mean() <= best_val_loss:
             best_val_loss = val_metrics['losses'].mean()
-            best_state_dict = deepcopy(model.state_dict())
+            best_state_dict = deepcopy(model.module.state_dict())
 
         if checkpoint_path is not None:
-            torch.save(model, checkpoint_path)
+            torch.save(best_state_dict, checkpoint_path)
 
         print('Val loss: {}'.format(val_metrics['losses'].mean()))
         writer.add_scalar('Loss/val', val_metrics['losses'].mean(), epoch)
