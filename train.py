@@ -9,6 +9,7 @@ from models.ABPN import *
 from copy import deepcopy
 from torch.utils.tensorboard import SummaryWriter
 from datasets.dataloaders import get_datasets
+import os
 
 def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_object, checkpoint_path=None):
 
@@ -113,5 +114,6 @@ if __name__ == '__main__':
         model = nn.DataParallel(model)
 
     save_path = 'checkpoints/ABPN/{}'.format('ABPN_4x.pth')
+    os.makedirs(save_path, exist_ok=True)
 
     train(model, train_ds, val_ds, epochs=400, batch_size=32, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_path)
