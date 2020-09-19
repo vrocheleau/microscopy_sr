@@ -97,7 +97,7 @@ if __name__ == '__main__':
     pretrained = True
     multi_gpu = True
 
-    pretrained_path = 'checkpoints/ABPN/pretrained/ABPN_4x.pth'
+    pretrained_path = 'pretrained/ABPN/ABPN_4x.pth'
 
     train_ds, test_ds, val_ds = get_datasets('datasets/splits/czi',
                                              chanels=[2], scale_factor=4, patch_size=160, preload=False, augment=True)
