@@ -35,8 +35,6 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
     for epoch in range(epochs):
         model.train()
 
-        print('Epoch {} / {}'.format(epoch + 1, epochs))
-
         for HR, LR in tqdm(train_loader, ncols=100, desc='[{}/{}]Training'.format(epoch, epochs)):
             HR, LR = HR.to(device), LR.to(device, non_blocking=True)
 

@@ -54,7 +54,7 @@ class SrDataset(Dataset):
             if random() > 0.5:
                 image = image.transpose(Image.FLIP_LEFT_RIGHT)
         elif self.patch_size is not None:
-            rand_crop = transforms.RandomCrop(size=self.patch_size)
+            rand_crop = transforms.CenterCrop(size=self.patch_size)
             image = rand_crop(image)
 
         if self.transform:
