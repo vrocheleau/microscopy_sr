@@ -62,7 +62,7 @@ class ABPN_v3(nn.Module):
 
     def forward(self, x):
         # feature extraction
-        bic_x = F.interpolate(x, scale_factor=2, mode='bicubic')
+        bic_x = F.interpolate(x, scale_factor=2, mode='bicubic', align_corners=True)
         feat_x = self.feat1(bic_x)
         SA0 = self.SA0(feat_x)
         feat_x = self.feat2(SA0)
@@ -96,7 +96,7 @@ class ABPN_v3(nn.Module):
         LR_feat = self.LR_conv1(LR_feat)
         LR_feat = self.LR_conv2(LR_feat)
         SR_res = self.SR_conv3(HR_feat + LR_feat)
-        bic_x = F.interpolate(bic_x, scale_factor=8, mode='bicubic')
+        bic_x = F.interpolate(bic_x, scale_factor=8, mode='bicubic', align_corners=True)
 
         SR = bic_x + SR_res
 
@@ -210,7 +210,7 @@ class ABPN_v5(nn.Module):
 
     def forward(self, x):
         # feature extraction
-        bic_x = F.interpolate(x, scale_factor=4, mode='bicubic')
+        bic_x = F.interpolate(x, scale_factor=4, mode='bicubic', align_corners=True)
         feat_x = self.feat1(x)
         SA0 = self.SA0(feat_x)
         feat_x = self.feat2(SA0)
@@ -263,12 +263,12 @@ class ABPN_v5(nn.Module):
 
         SR = bic_x + SR_res
 
-        LR_res = x - F.interpolate(SR, scale_factor=0.25, mode='bicubic')
+        LR_res = x - F.interpolate(SR, scale_factor=0.25, mode='bicubic', align_corners=True)
         LR_res = self.final_feat1(LR_res)
         LR_SA = self.final_SA0(LR_res)
         LR_res = self.final_feat2(LR_SA)
 
-        SR_res = F.interpolate(LR_res, scale_factor=4, mode='bicubic')
+        SR_res = F.interpolate(LR_res, scale_factor=4, mode='bicubic', align_corners=True)
 
         SR = SR + SR_res
 

@@ -84,7 +84,7 @@ class SrDataset(Dataset):
 
     def load_image(self, path):
         img = AICSImage(path)
-        img = img.get_image_data("CZYX", S=0, T=0)
+        img = img.get_image_data("CZYX", S=0, T=0, dim=0)
         img = img.squeeze(1)[self.chanels]
         img = img.transpose(1, 2, 0)
         img = to_pil_image(img)

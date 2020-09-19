@@ -10,6 +10,9 @@ from copy import deepcopy
 from torch.utils.tensorboard import SummaryWriter
 from datasets.dataloaders import get_datasets
 import os
+import warnings
+
+warnings.filterwarnings("ignore", module=".*aicsimageio")
 
 def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_object, checkpoint_path=None):
 
