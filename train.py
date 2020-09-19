@@ -113,7 +113,8 @@ if __name__ == '__main__':
     if multi_gpu:
         model = nn.DataParallel(model)
 
-    save_path = 'checkpoints/ABPN/{}'.format('ABPN_4x.pth')
+    save_path = 'checkpoints/ABPN'
+    save_name = os.path.join(save_path, 'ABPN_4x.pth')
     os.makedirs(save_path, exist_ok=True)
 
-    train(model, train_ds, val_ds, epochs=200, batch_size=32, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_path)
+    train(model, train_ds, val_ds, epochs=200, batch_size=32, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_name)
