@@ -20,7 +20,7 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
 
     train_loader = DataLoader(train_ds,
                               batch_size=batch_size,
-                              sampler=ExpandedRandomSampler(len(train_ds), multiplier=4), num_workers=6)
+                              sampler=ExpandedRandomSampler(len(train_ds), multiplier=2), num_workers=8)
 
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=6)
 
@@ -116,4 +116,4 @@ if __name__ == '__main__':
     save_path = 'checkpoints/ABPN/{}'.format('ABPN_4x.pth')
     os.makedirs(save_path, exist_ok=True)
 
-    train(model, train_ds, val_ds, epochs=400, batch_size=32, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_path)
+    train(model, train_ds, val_ds, epochs=200, batch_size=32, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_path)
