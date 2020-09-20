@@ -104,11 +104,12 @@ class ABPN_v3(nn.Module):
 
 
 class ABPN_v5(nn.Module):
-    def __init__(self, input_dim, dim):
+    def __init__(self, input_dim, dim, kernel=6, stride=4, pad=1, scale_factor=4):
         super(ABPN_v5, self).__init__()
-        kernel_size = 6
-        pad = 1
-        stride = 4
+        kernel_size = kernel
+        pad = pad
+        stride = stride
+        self.scale_factor = scale_factor
 
         self.feat1 = ConvBlock(input_dim, 2 * dim, 3, 1, 1)
         self.SA0 = Space_attention(2 * dim, 2 * dim, 1, 1, 0, 1)
@@ -210,7 +211,7 @@ class ABPN_v5(nn.Module):
 
     def forward(self, x):
         # feature extraction
-        bic_x = F.interpolate(x, scale_factor=4, mode='bicubic', align_corners=True)
+        bic_x = F.interpolate(x, scale_factor=self.scale_factor, mode='bicubic', align_corners=True)
         feat_x = self.feat1(x)
         SA0 = self.SA0(feat_x)
         feat_x = self.feat2(SA0)
@@ -263,12 +264,12 @@ class ABPN_v5(nn.Module):
 
         SR = bic_x + SR_res
 
-        LR_res = x - F.interpolate(SR, scale_factor=0.25, mode='bicubic', align_corners=True)
+        LR_res = x - F.interpolate(SR, scale_factor=1/self.scale_factor, mode='bicubic', align_corners=True)
         LR_res = self.final_feat1(LR_res)
         LR_SA = self.final_SA0(LR_res)
         LR_res = self.final_feat2(LR_SA)
 
-        SR_res = F.interpolate(LR_res, scale_factor=4, mode='bicubic', align_corners=True)
+        SR_res = F.interpolate(LR_res, scale_factor=self.scale_factor, mode='bicubic', align_corners=True)
 
         SR = SR + SR_res
 
@@ -660,3 +661,16 @@ class Space_Time_Attention_v2(torch.nn.Module):
         y1 = self.resblock_y1(y1)
 
         return x1, y1
+
+if __name__ == "__main__":
+
+    model_4x = ABPN_v5(3, 32)
+    model_8x = ABPN_v5(3, 32, kernel=10, stride=8, scale_factor=8)
+    model_16x = ABPN_v3(3, 32)
+
+    x = torch.rand(1, 3, 60, 60)
+
+    with torch.no_grad():
+        print('Input:', x.shape, '-> model_4x(input):', model_4x(x).shape)
+        print('Input:', x.shape, '-> model_8x(input):', model_8x(x).shape)
+        print('Input:', x.shape, '-> model_16x(input):', model_16x(x).shape)
