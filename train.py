@@ -94,28 +94,46 @@ def opt_sch_ABPN(model):
     scheduler = None
     return optimizer, scheduler
 
+models_rgb = {
+    4: ABPN_v5(3, 32),
+    8: ABPN_v5(3, 32, kernel=10, stride=8, scale_factor=8),
+    16: ABPN_v3(3, 32)
+}
+models_gs = {
+    4: ABPN_v5(1, 32),
+    8: ABPN_v5(1, 32, kernel=10, stride=8, scale_factor=8),
+    16: ABPN_v3(1, 32)
+}
+
+pretrained_paths = {
+    4: 'pretrained/ABPN/ABPN_4x.pth',
+    8: 'pretrained/ABPN/ABPN_8x.pth',
+    16: 'pretrained/ABPN/ABPN_16x.pth'
+}
+
 if __name__ == '__main__':
 
+    scale_factor = 8
     pretrained = True
     multi_gpu = True
 
-    pretrained_path = 'pretrained/ABPN/ABPN_4x.pth'
+    pretrained_path = pretrained_paths[scale_factor]
 
     train_ds, test_ds, val_ds = get_datasets('datasets/splits/czi',
-                                             chanels=[2], scale_factor=4, patch_size=160, preload=False, augment=True)
+                                             chanels=[2], scale_factor=scale_factor, patch_size=160, preload=False, augment=True)
 
     if pretrained:
-        model = ABPN_v5(3, 32)
-        model.load_state_dict(torch.load((pretrained_path)))
+        model = models_rgb[scale_factor]
+        model.load_state_dict(torch.load((pretrained_path)), strict=False)
         model.patch_input_dim(1, 32)
     else:
-        model = ABPN_v5(1, 32)
+        model = models_gs[scale_factor]
 
     if multi_gpu:
         model = nn.DataParallel(model)
 
     save_path = 'checkpoints/ABPN'
-    save_name = os.path.join(save_path, 'ABPN_4x.pth')
+    save_name = os.path.join(save_path, 'ABPN_{}x.pth'.format(scale_factor))
     os.makedirs(save_path, exist_ok=True)
 
     train(model, train_ds, val_ds, epochs=200, batch_size=32, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_name)
