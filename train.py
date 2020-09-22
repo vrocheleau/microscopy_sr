@@ -56,8 +56,9 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
             best_val_loss = val_metrics['losses'].mean()
             best_state_dict = deepcopy(model.module.state_dict())
 
-        if checkpoint_path is not None:
-            torch.save(best_state_dict, checkpoint_path)
+            if checkpoint_path is not None:
+                print("Checkpoint saving state dict")
+                torch.save(best_state_dict, checkpoint_path)
 
         print('Val loss: {}'.format(val_metrics['losses'].mean()))
         writer.add_scalar('Loss/val', val_metrics['losses'].mean(), epoch)
@@ -120,7 +121,7 @@ if __name__ == '__main__':
     pretrained_path = pretrained_paths[scale_factor]
 
     train_ds, test_ds, val_ds = get_datasets('datasets/splits/czi',
-                                             chanels=[2], scale_factor=scale_factor, patch_size=160, preload=False, augment=True)
+                                             chanels=[2], scale_factor=scale_factor, patch_size=128, preload=False, augment=True)
 
     if pretrained:
         model = models_rgb[scale_factor]
@@ -136,4 +137,4 @@ if __name__ == '__main__':
     save_name = os.path.join(save_path, 'ABPN_{}x.pth'.format(scale_factor))
     os.makedirs(save_path, exist_ok=True)
 
-    train(model, train_ds, val_ds, epochs=200, batch_size=32, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_name)
+    train(model, train_ds, val_ds, epochs=200, batch_size=24, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_name)
