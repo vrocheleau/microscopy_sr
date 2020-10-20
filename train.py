@@ -6,6 +6,7 @@ from torch.optim import SGD, lr_scheduler, Adam
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from models.ABPN import *
+from models.nets import get_net
 from copy import deepcopy
 from torch.utils.tensorboard import SummaryWriter
 from datasets.dataloaders import get_datasets
@@ -36,7 +37,7 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
         model.train()
 
         for HR, LR in tqdm(train_loader, ncols=100, desc='[{}/{}]Training'.format(epoch, epochs)):
-            HR, LR = HR.to(device), LR.to(device, non_blocking=True)
+            HR, LR = HR.to(device), LR.to(device)
 
             out = model(LR)
 
@@ -64,6 +65,7 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
         writer.add_scalar('Loss/val', val_metrics['losses'].mean(), epoch)
 
     model.load_state_dict(best_state_dict)
+
 
 def eval(model, loader, loss_object, test=False):
     model.eval()
@@ -95,46 +97,24 @@ def opt_sch_ABPN(model):
     scheduler = None
     return optimizer, scheduler
 
-models_rgb = {
-    4: ABPN_v5(3, 32),
-    8: ABPN_v5(3, 32, kernel=10, stride=8, scale_factor=8),
-    16: ABPN_v3(3, 32)
-}
-models_gs = {
-    4: ABPN_v5(1, 32),
-    8: ABPN_v5(1, 32, kernel=10, stride=8, scale_factor=8),
-    16: ABPN_v3(1, 32)
-}
-
-pretrained_paths = {
-    4: 'pretrained/ABPN/ABPN_4x.pth',
-    8: 'pretrained/ABPN/ABPN_8x.pth',
-    16: 'pretrained/ABPN/ABPN_16x.pth'
-}
 
 if __name__ == '__main__':
 
-    scale_factor = 8
+    name = 'dbpn' # abpn or dbpn
+    scale_factor = 4
     pretrained = True
     multi_gpu = True
 
-    pretrained_path = pretrained_paths[scale_factor]
-
     train_ds, test_ds, val_ds = get_datasets('datasets/splits/czi',
-                                             chanels=[2], scale_factor=scale_factor, patch_size=128, preload=False, augment=True)
+                                             chanels=[2], scale_factor=scale_factor, patch_size=32*scale_factor, preload=False, augment=True)
 
-    if pretrained:
-        model = models_rgb[scale_factor]
-        model.load_state_dict(torch.load((pretrained_path)), strict=False)
-        model.patch_input_dim(1, 32)
-    else:
-        model = models_gs[scale_factor]
+    model = get_net(name=name, chanels=1, scale_factor=scale_factor, base_pretrain=pretrained)
 
     if multi_gpu:
         model = nn.DataParallel(model)
 
-    save_path = 'checkpoints/ABPN'
-    save_name = os.path.join(save_path, 'ABPN_{}x.pth'.format(scale_factor))
+    save_path = 'checkpoints/{}'.format(name.upper())
+    save_name = os.path.join(save_path, '{}_{}x.pth'.format(name.upper(), scale_factor))
     os.makedirs(save_path, exist_ok=True)
 
-    train(model, train_ds, val_ds, epochs=200, batch_size=24, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_name)
+    train(model, train_ds, val_ds, epochs=5000, batch_size=16, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_name)

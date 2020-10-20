@@ -1,11 +1,15 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from collections import OrderedDict
 
 
 class ABPN_v3(nn.Module):
     def __init__(self, input_dim, dim):
         super(ABPN_v3, self).__init__()
+
+        self.dim = dim
+
         kernel_size = 10
         pad = 1
         stride = 8
@@ -88,6 +92,10 @@ class ABPN_v3(nn.Module):
         down5 = self.SA5(self.weight_down3(down3), down5)
         # BP 6
         up6 = self.up6(down5) + self.weight_up4(up4)
+
+        print(x.shape)
+        print(up6.shape)
+
         # reconstruction
         HR_feat = torch.cat((up1, up2, up3, up4, up5, up6), 1)
         LR_feat = torch.cat((down1, down2, down3, down4, down5), 1)
@@ -102,11 +110,11 @@ class ABPN_v3(nn.Module):
 
         return SR
 
-    def patch_input_dim(self, input_dim, dim):
-        self.feat1 = ConvBlock(input_dim, 2 * dim, 3, 1, 1)
-        self.SR_conv3 = nn.Conv2d(dim, input_dim, 3, 1, 1)
-        self.final_feat1 = ConvBlock(input_dim, 2 * dim, 3, 1, 1)
-        self.final_feat2 = nn.Conv2d(2 * dim, input_dim, 3, 1, 1)
+    def patch_input_dim(self, input_dim):
+        self.feat1 = ConvBlock(input_dim, 2 * self.dim, 3, 1, 1)
+        self.SR_conv3 = nn.Conv2d(self.dim, input_dim, 3, 1, 1)
+        self.final_feat1 = ConvBlock(input_dim, 2 * self.dim, 3, 1, 1)
+        self.final_feat2 = nn.Conv2d(2 * self.dim, input_dim, 3, 1, 1)
 
         for m in self.modules():
             classname = m.__class__.__name__
@@ -119,6 +127,9 @@ class ABPN_v3(nn.Module):
                 if m.bias is not None:
                     m.bias.data.zero_()
 
+    def load_dict(self, model_name):
+        self.load_state_dict(torch.load(model_name, map_location=lambda storage, loc: storage))
+
 
 class ABPN_v5(nn.Module):
     def __init__(self, input_dim, dim, kernel=6, stride=4, pad=1, scale_factor=4):
@@ -127,6 +138,7 @@ class ABPN_v5(nn.Module):
         pad = pad
         stride = stride
         self.scale_factor = scale_factor
+        self.dim = dim
 
         self.feat1 = ConvBlock(input_dim, 2 * dim, 3, 1, 1)
         self.SA0 = Space_attention(2 * dim, 2 * dim, 1, 1, 0, 1)
@@ -188,9 +200,18 @@ class ABPN_v5(nn.Module):
         self.down10 = DownBlock(dim, dim, kernel_size, stride, pad)
         self.SA10 = Time_attention(dim, dim, 1, 1, 0, 1)
         # reconstruction
+
+        # if scale_factor == 8:
+        #     self.SR_conv1 = ConvBlock(256, dim, 1, 1, 0)
+        #     self.LR_conv1 = ConvBlock(256, dim, 1, 1, 0)
+        # else:
+        #     self.SR_conv1 = ConvBlock(10 * dim, dim, 1, 1, 0)
+        #     self.LR_conv1 = ConvBlock(9 * dim, dim, 1, 1, 0)
+
         self.SR_conv1 = ConvBlock(10 * dim, dim, 1, 1, 0)
-        self.SR_conv2 = ConvBlock(dim, dim, 3, 1, 1)
         self.LR_conv1 = ConvBlock(9 * dim, dim, 1, 1, 0)
+
+        self.SR_conv2 = ConvBlock(dim, dim, 3, 1, 1)
         self.LR_conv2 = UpBlock(dim, dim, kernel_size, stride, pad)
         self.SR_conv3 = nn.Conv2d(dim, input_dim, 3, 1, 1)
         # BP final
@@ -209,11 +230,11 @@ class ABPN_v5(nn.Module):
                 if m.bias is not None:
                     m.bias.data.zero_()
 
-    def patch_input_dim(self, input_dim, dim):
-        self.feat1 = ConvBlock(input_dim, 2 * dim, 3, 1, 1)
-        self.SR_conv3 = nn.Conv2d(dim, input_dim, 3, 1, 1)
-        self.final_feat1 = ConvBlock(input_dim, 2 * dim, 3, 1, 1)
-        self.final_feat2 = nn.Conv2d(2 * dim, input_dim, 3, 1, 1)
+    def patch_input_dim(self, input_dim):
+        self.feat1 = ConvBlock(input_dim, 2 * self.dim, 3, 1, 1)
+        self.SR_conv3 = nn.Conv2d(self.dim, input_dim, 3, 1, 1)
+        self.final_feat1 = ConvBlock(input_dim, 2 * self.dim, 3, 1, 1)
+        self.final_feat2 = nn.Conv2d(2 * self.dim, input_dim, 3, 1, 1)
 
         for m in self.modules():
             classname = m.__class__.__name__
@@ -270,6 +291,7 @@ class ABPN_v5(nn.Module):
         down9 = self.SA9(self.weight_down7(down7), down9)
         # BP 10
         up10 = self.up10(down9) + self.weight_up8(up8)
+
         # reconstruction
         HR_feat = torch.cat((up1, up2, up3, up4, up5, up6, up7, up8, up9, up10), 1)
         LR_feat = torch.cat((down1, down2, down3, down4, down5, down6, down7, down8, down9), 1)
@@ -292,6 +314,16 @@ class ABPN_v5(nn.Module):
 
         return SR
 
+    def load_dict(self, model_name):
+        if self.scale_factor in [8, 16]:
+            new_state_dict = OrderedDict()
+            state_dict = torch.load(model_name, map_location=lambda storage, loc: storage)
+            for k, v in state_dict.items():
+                name = k.replace('module.', '')
+                new_state_dict[name] = v
+            self.load_state_dict(new_state_dict)
+        else:
+            self.load_state_dict(torch.load(model_name, map_location=lambda storage, loc: storage))
 
 ############################################################################################
 # Base models
