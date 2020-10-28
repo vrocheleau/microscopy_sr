@@ -12,10 +12,11 @@ from torch.utils.tensorboard import SummaryWriter
 from datasets.dataloaders import get_datasets
 import os
 import warnings
+import time
 
 warnings.filterwarnings("ignore", module=".*aicsimageio")
 
-def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_object, checkpoint_path=None):
+def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_object, checkpoint_path=None, ex=None):
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     model.to(device)
@@ -24,7 +25,8 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
 
     train_loader = DataLoader(train_ds,
                               batch_size=batch_size,
-                              sampler=ExpandedRandomSampler(len(train_ds), multiplier=2), num_workers=8)
+                              sampler=ExpandedRandomSampler(len(train_ds), multiplier=2),
+                              num_workers=4, pin_memory=True, drop_last=True)
 
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=6)
 
@@ -34,8 +36,10 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
     writer = SummaryWriter()
 
     for epoch in range(epochs):
-        model.train()
+        start_time = time.time()
 
+        model.train()
+        print('LOADED IMAGES IN MEMORY ', len(train_ds.images))
         for HR, LR in tqdm(train_loader, ncols=100, desc='[{}/{}]Training'.format(epoch, epochs)):
             HR, LR = HR.to(device), LR.to(device)
 
@@ -64,7 +68,14 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
         print('Val loss: {}'.format(val_metrics['losses'].mean()))
         writer.add_scalar('Loss/val', val_metrics['losses'].mean(), epoch)
 
-    model.load_state_dict(best_state_dict)
+        if ex is not None:
+            ex.log_scalar('val_loss', val_metrics['losses'].mean())
+
+        elapsed_time = time.time() - start_time
+        print(elapsed_time)
+
+    model.module.load_state_dict(best_state_dict)
+    return model
 
 
 def eval(model, loader, loss_object, test=False):
@@ -106,7 +117,8 @@ if __name__ == '__main__':
     multi_gpu = True
 
     train_ds, test_ds, val_ds = get_datasets('datasets/splits/czi',
-                                             chanels=[2], scale_factor=scale_factor, patch_size=32*scale_factor, preload=False, augment=True)
+                                             chanels=[2], scale_factor=scale_factor, patch_size=32*scale_factor,
+                                             preload=True, augment=True)
 
     model = get_net(name=name, chanels=1, scale_factor=scale_factor, base_pretrain=pretrained)
 

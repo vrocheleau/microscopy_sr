@@ -63,6 +63,9 @@ coverage.xml
 .pytest_cache/
 
 out/
+films_out/
+notebooks/
+sacred_runs/
 
 # Translations
 *.mo

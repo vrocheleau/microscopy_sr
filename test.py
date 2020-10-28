@@ -136,13 +136,6 @@ pretrained_paths = {
     'dbpn': dbpn_pretrained_paths
 }
 
-
-def opt_sch_ABPN(model):
-    optimizer = Adam(model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8)
-    scheduler = None
-    return optimizer, scheduler
-
-
 def get_psnr(pred, target):
     mse_loss = nn.MSELoss()
     mse = mse_loss(pred, target)

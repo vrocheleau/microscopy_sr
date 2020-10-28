@@ -16,7 +16,7 @@ def get_datasets(splits_dir, chanels, scale_factor, patch_size, preload=False, a
     ])
 
     train_ds = SrDataset(train_csv, chanels, scale_factor, patch_size, trans, preload, augment)
-    test_ds = SrDataset(test_csv, chanels, scale_factor, patch_size, trans, preload, augment=False)
+    test_ds = SrDataset(test_csv, chanels, scale_factor, None, trans, preload, augment=False)
     val_ds = SrDataset(val_csv, chanels, scale_factor, patch_size, trans, preload, augment=False)
 
     return train_ds, test_ds, val_ds

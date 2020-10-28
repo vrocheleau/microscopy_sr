@@ -3,14 +3,11 @@ import torch as torch
 from torch.utils.data import Dataset
 from torch.nn import functional as F
 from random import random, randint
-from os.path import join
-import numpy as np
 from torchvision import transforms
 from utils import *
-from aicsimageio import AICSImage, imread
+from aicsimageio import AICSImage
 from tqdm import tqdm
 from torchvision.transforms.functional import to_pil_image
-from torch.utils.data import DataLoader
 
 class SrDataset(Dataset):
 
@@ -24,7 +21,7 @@ class SrDataset(Dataset):
         self.augment = augment
         self.patch_size = patch_size
         self.n = len(self.rows)
-        self.images ={}
+        self.images = {}
 
         if preload:
             self.images = self.load_images(self.rows)
@@ -33,11 +30,11 @@ class SrDataset(Dataset):
 
         img_path = self.rows[item][0]
 
-        if self.preload or img_path in self.images.keys():
-            image = self.images[img_path]
+        if self.preload or item in self.images.keys():
+            image = self.images[item]
         else:
             image = self.load_image(img_path)
-            self.images[img_path] = image
+            self.images[item] = image
 
         if self.augment:
 
@@ -74,12 +71,8 @@ class SrDataset(Dataset):
 
     def load_images(self, rows):
         images = {}
-        for f in tqdm(rows, 'pre-loading dataset images'):
-            # img = AICSImage(f[0])
-            # img = img.get_image_data("CZYX", S=0, T=0)
-            # img = img.squeeze(1)[self.chanels]
-            # img = to_pil_image(img)
-            images[f[0]] = self.load_image(f[0])
+        for i, f in enumerate(tqdm(rows, 'pre-loading dataset images')):
+            images[i] = self.load_image(f[0])
         return images
 
     def load_image(self, path):
@@ -89,17 +82,3 @@ class SrDataset(Dataset):
         img = img.transpose(1, 2, 0)
         img = to_pil_image(img)
         return img
-
-if __name__ == "__main__":
-
-    import os
-
-    ds = SrDataset('/home/victor/PycharmProjects/microscopy_sr/datasets/splits/czi/train.csv', [2], 4, 160, None, preload=False, augment=True)
-
-    train_loader = DataLoader(ds,
-                              batch_size=8,
-                              sampler=ExpandedRandomSampler(len(ds), multiplier=4),
-                              num_workers=1)
-
-    for x, y in tqdm(train_loader):
-        x = x
