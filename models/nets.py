@@ -2,6 +2,7 @@ import torch
 from .ABPN import *
 from .DBPN.DBPN import Net as DBPN
 from .DBPN.DBPN import Net16 as DBPN16
+from .FSRCNN import FSRCNN
 from utils import load_state_dict_replace
 
 
@@ -21,9 +22,14 @@ def get_dbpn(chanels, scale_factor):
         return DBPN(num_channels=chanels, base_filter=64, feat=256, num_stages=7, scale_factor=scale_factor)
 
 
+def get_fsrcnn(chanels, scale_factor):
+    return FSRCNN(scale_factor=scale_factor, num_channels=chanels)
+
+
 models = {
     'abpn': get_abpn,
-    'dbpn': get_dbpn
+    'dbpn': get_dbpn,
+    'fsrcnn': get_fsrcnn
 }
 
 abpn_pretrained_paths = {

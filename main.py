@@ -21,11 +21,11 @@ from sacred.observers import FileStorageObserver, MongoObserver
 warnings.filterwarnings("ignore", module=".*aicsimageio")
 
 ex = Experiment()
-# ex.observers.append(FileStorageObserver('sacred_runs'))
+ex.observers.append(FileStorageObserver('sacred_runs'))
 # ex.observers.append(MongoObserver())
-ex.observers.append(MongoObserver(
-    url='mongodb://mongo_user:mongo_password@localhost:27017/?authSource=admin&readPreference=primary&appname=MongoDB%20Compass&ssl=false',
-    db_name='sacred'))
+# ex.observers.append(MongoObserver(
+#     url='mongodb://mongo_user:mongo_password@localhost:27017/?authSource=admin&readPreference=primary&appname=MongoDB%20Compass&ssl=false',
+#     db_name='sacred'))
 
 def opt_sch_ABPN(model):
     optimizer = Adam(model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8)
@@ -34,13 +34,13 @@ def opt_sch_ABPN(model):
 
 @ex.config
 def conf():
-    name = 'abpn' # abpn or dbpn
+    name = 'abpn' # abpn, dbpn, fsrcnn
     scale_factor = 4
-    pretrained = True
+    pretrained = False
     multi_gpu = True
-    batch_size = 16
+    batch_size = 32
     chanels = [2]
-    epochs = 2000
+    epochs = 100
     preload = True
     patch_size = 32
 
