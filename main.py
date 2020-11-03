@@ -34,13 +34,13 @@ def opt_sch_ABPN(model):
 
 @ex.config
 def conf():
-    name = 'rcan' # abpn, dbpn, fsrcnn
+    name = 'edsr' # abpn, dbpn, fsrcnn
     scale_factor = 4
     pretrained = False
     multi_gpu = True
-    batch_size = 16
+    batch_size = 32
     chanels = [2]
-    epochs = 100
+    epochs = 30
     preload = True
     patch_size = 32
 

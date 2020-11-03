@@ -4,6 +4,7 @@ from .DBPN.DBPN import Net as DBPN
 from .DBPN.DBPN import Net16 as DBPN16
 from .FSRCNN import FSRCNN
 from .RCAN import RCAN
+from .EDSR import EDSR
 from utils import load_state_dict_replace
 
 
@@ -29,12 +30,16 @@ def get_fsrcnn(chanels, scale_factor):
 def get_rcan(chanels, scale_factor):
     return RCAN(scale_factor, chanels)
 
+def get_edsr(chanels, scale_factor):
+    return EDSR(scale=scale_factor, n_colors=chanels)
+
 
 models = {
     'abpn': get_abpn,
     'dbpn': get_dbpn,
     'fsrcnn': get_fsrcnn,
-    'rcan': get_rcan
+    'rcan': get_rcan,
+    'edsr': get_edsr
 }
 
 abpn_pretrained_paths = {
