@@ -5,6 +5,8 @@ from .DBPN.DBPN import Net16 as DBPN16
 from .FSRCNN import FSRCNN
 from .RCAN import RCAN
 from .EDSR import EDSR
+from .DRRN import DRRN
+from .MEMNET import MemNet
 from utils import load_state_dict_replace
 
 
@@ -33,13 +35,20 @@ def get_rcan(chanels, scale_factor):
 def get_edsr(chanels, scale_factor):
     return EDSR(scale=scale_factor, n_colors=chanels)
 
+def get_drrn(chanels, scale_factor):
+    return DRRN(num_chanels=chanels, scale_factor=scale_factor)
+
+def get_memnet(chanels, scale_factor):
+    return MemNet(in_channels=chanels, scale_factor=scale_factor)
 
 models = {
     'abpn': get_abpn,
     'dbpn': get_dbpn,
     'fsrcnn': get_fsrcnn,
     'rcan': get_rcan,
-    'edsr': get_edsr
+    'edsr': get_edsr,
+    'drrn': get_drrn,
+    'memnet': get_memnet
 }
 
 abpn_pretrained_paths = {

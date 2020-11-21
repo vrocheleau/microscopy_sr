@@ -62,7 +62,8 @@ class SrDataset(Dataset):
             image = to_tensor(image)
 
         image = image.unsqueeze(0)
-        lr = F.interpolate(image, scale_factor=1/self.scale_factor, mode='bicubic', align_corners=True)
+        lr = F.interpolate(image, scale_factor=1/self.scale_factor, mode='bicubic',
+                           align_corners=True, recompute_scale_factor=False)
 
         return image.squeeze(0), lr.squeeze(0)
 

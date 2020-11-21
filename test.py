@@ -7,15 +7,23 @@ from models.ABPN import *
 from datasets.dataloaders import get_datasets
 import warnings
 from math import log10
-from piq import psnr
-from piq import ssim
+from utils import ssim
+# from piq import ssim
+# from skimage.metrics import structural_similarity as ssim
+
 from utils import patchify_forward, min_max_scaler
 from torchvision.utils import save_image
 import os
 import json
 from matplotlib import pyplot as plt
+from torch.nn import functional as F
 
 warnings.filterwarnings("ignore", module=".*aicsimageio")
+
+def psnr(pred, target):
+    mse = F.mse_loss(pred, target)
+    psnr = 10 * log10(1 / mse.item())
+    return psnr
 
 def save_fig(lr, hr, sr, sr_bic, sr_metrics, bic_metrics, factor, file_name):
 
@@ -60,12 +68,11 @@ def test(model, loader, patch_size, scale_factor, save_dir, test=False, interp=F
     with torch.no_grad():
         for i, (HR, LR) in enumerate(pbar):
             HR, LR = HR.to(device), LR
-
             if interp:
                 LR = LR.to(device)
                 pred = F.interpolate(LR, scale_factor=scale_factor, align_corners=True, mode='bicubic')
                 pred = min_max_scaler(pred)
-                psnr_val = psnr(pred, HR).item()
+                psnr_val = psnr(pred, HR)
                 ssim_val = ssim(pred, HR).item()
             else:
                 pred = patchify_forward(img=LR, model=model, patch_size=patch_size, scaling_factor=scale_factor)
@@ -74,9 +81,12 @@ def test(model, loader, patch_size, scale_factor, save_dir, test=False, interp=F
                 pred_bic = F.interpolate(LR, scale_factor=scale_factor, align_corners=True, mode='bicubic')
                 pred_bic = min_max_scaler(pred_bic)
 
-                psnr_val = psnr(pred, HR).item()
+                pred = pred.clamp(0, 1)
+                pred_bic = pred_bic.clamp(0, 1)
+                HR = HR.clamp(0, 1)
+                psnr_val = psnr(pred, HR)
                 ssim_val = ssim(pred, HR).item()
-                psnr_val_bic = psnr(pred_bic, HR).item()
+                psnr_val_bic = psnr(pred_bic, HR)
                 ssim_val_bic = ssim(pred_bic, HR).item()
 
                 save_fig(LR, HR, pred, pred_bic, (ssim_val, psnr_val), (ssim_val_bic, psnr_val_bic),
@@ -85,8 +95,8 @@ def test(model, loader, patch_size, scale_factor, save_dir, test=False, interp=F
 
             loss = loss_object(pred, HR).item()
 
-            # psnr_val = psnr(pred, HR).item()
-            # ssim_val = ssim(pred, HR).item()
+            psnr_val = psnr(pred, HR)
+            ssim_val = ssim(pred, HR).item()
 
             all_losses.append(loss)
             all_psnr.append(psnr_val)
@@ -145,7 +155,7 @@ def get_psnr(pred, target):
 
 if __name__ == '__main__':
 
-    name = 'dbpn' # abpn or dbpn
+    name = 'edsr' # abpn or dbpn
     scale_factor = 4
     pretrained = True
     multi_gpu = True
@@ -157,7 +167,7 @@ if __name__ == '__main__':
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(os.path.join(save_dir, 'imgs'), exist_ok=True)
 
-    # pretrained_path = pretrained_paths[scale_factor]
+    pretrained_path = '/home/victor/PycharmProjects/microscopy_sr/checkpoints/EDSR/EDSR_4x.pth'
 
     train_ds, test_ds, val_ds = get_datasets('datasets/splits/czi',
                                              chanels=[2], scale_factor=scale_factor,
@@ -166,7 +176,7 @@ if __name__ == '__main__':
     test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=6)
 
     model = get_net(name=name, chanels=1, scale_factor=scale_factor,
-                    base_pretrain=False, state_dict=pretrained_paths[name][scale_factor])
+                    base_pretrain=False, state_dict=pretrained_path)
 
     if multi_gpu:
         model = nn.DataParallel(model)
@@ -183,7 +193,7 @@ if __name__ == '__main__':
 
     mean_metrics = {
         'mean_loss': mean_loss,
-        'mean_ssim': mean_ssim,
+        # 'mean_ssim': mean_ssim,
         'mean_psnr': mean_psnr
     }
 

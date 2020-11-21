@@ -13,8 +13,8 @@ def write_splits_csv(name, files):
 
 if __name__ == "__main__":
 
-    hold_size = 0.4
-    val_size = 0.4
+    hold_size = 0.5
+    val_size = 0.5
 
     scale_factors = [4, 8, 16]
 
