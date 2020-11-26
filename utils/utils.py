@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from collections import OrderedDict
 from torch.autograd import Variable
 from math import exp
-
+import numpy as np
 
 def load_state_dict_replace(model, state_dict_path, pattern, replace_pattern, strict=True):
     print(len(model.state_dict()))
@@ -325,3 +325,23 @@ def ssim(img1, img2, window_size=11, size_average=True):
 
 def min_max_scaler(tensor):
     return (tensor - tensor.min())/(tensor.max() - tensor.min())
+
+class MetricsLogger:
+
+    def __init__(self, evaluation=None):
+        self.eval = evaluation
+        self.elements = []
+
+    def add_batch(self, target, pred):
+        batch_score = self.eval(target, pred)
+        self.elements.append(batch_score)
+        return batch_score
+
+    def add_value(self, value):
+        self.elements.append(value)
+
+    def value(self):
+        return np.asarray(self.elements).mean()
+
+    def reset(self):
+        self.elements = []

@@ -5,14 +5,16 @@ from utils import *
 import os
 from sacred import Ingredient
 
-def get_datasets(splits_dir, chanels, scale_factor, patch_size, preload=False, augment=False):
+def get_datasets(splits_dir, fold_num, chanels, scale_factor, patch_size, preload=False, augment=False):
 
-    train_csv = os.path.join(splits_dir, 'train.csv')
-    test_csv = os.path.join(splits_dir, 'test.csv')
-    val_csv = os.path.join(splits_dir, 'val.csv')
+    split = os.path.join(splits_dir, 'fold_{}'.format(fold_num))
+
+    train_csv = os.path.join(split, 'train.csv')
+    test_csv = os.path.join(split, 'test.csv')
+    val_csv = os.path.join(split, 'val.csv')
 
     trans = transforms.Compose([
-        transforms.ToTensor()
+        transforms.ToTensor(),
     ])
 
     train_ds = SrDataset(train_csv, chanels, scale_factor, patch_size, trans, preload, augment)

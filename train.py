@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from utils import ExpandedRandomSampler
+from utils import ExpandedRandomSampler, MetricsLogger
 from torch.optim import SGD, lr_scheduler, Adam
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -12,24 +12,36 @@ from torch.utils.tensorboard import SummaryWriter
 from datasets.dataloaders import get_datasets
 import os
 import warnings
-import time
+from sklearn import metrics
 
 warnings.filterwarnings("ignore", module=".*aicsimageio")
 
 
-def train_gan(generator: nn.Module, discriminator: nn.Module, train_ds, val_ds, epochs, batch_size,
-             g_opt_sch, d_opt_sch, adversarial_loss, content_loss, perception_loss, checkpoint_path=None, ex=None):
+def train_gan(generator: nn.Module, discriminator: nn.Module, train_ds, val_ds, epochs, val_intervals, batch_size,
+             g_opt_sch, d_opt_sch, losses, psnr_oriented, checkpoint_path=None, ex=None):
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     generator.to(device)
     discriminator.to(device)
-    adversarial_loss.to(device)
-    content_loss.to(device)
-    perception_loss.to(device)
+
+    adversarial_criterion, content_criterion, perception_criterion = losses(device)
+
+    adversarial_criterion.to(device)
+    content_criterion.to(device)
+    perception_criterion.to(device)
 
     g_optimizer, g_scheduler = g_opt_sch(generator)
     d_optimizer, d_scheduler = d_opt_sch(discriminator)
+
+    if psnr_oriented:
+        content_loss_factor = 1
+        perceptual_loss_factor = 0
+        adversarial_loss_factor = 0
+    else:
+        content_loss_factor = 1e-2
+        perceptual_loss_factor = 1
+        adversarial_loss_factor = 5e-3
 
     train_loader = DataLoader(train_ds,
                               batch_size=batch_size,
@@ -39,42 +51,63 @@ def train_gan(generator: nn.Module, discriminator: nn.Module, train_ds, val_ds, 
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
 
     best_val_loss = float('inf')
-    best_state_dict = deepcopy(generator.module.state_dict())
+    if isinstance(generator, torch.nn.DataParallel):
+        best_state_dict = deepcopy(generator.module.state_dict())
+    else:
+        best_state_dict = deepcopy(generator.state_dict())
 
     writer = SummaryWriter()
+
+    mini_batch = 0
+
+    real_acc_logger = MetricsLogger(evaluation=metrics.accuracy_score)
+    fake_acc_logger = MetricsLogger(evaluation=metrics.accuracy_score)
+    g_loss_logger = MetricsLogger()
+    d_loss_logger = MetricsLogger()
 
     for epoch in range(epochs):
 
         generator.train()
         discriminator.train()
 
+        real_acc_logger.reset()
+        fake_acc_logger.reset()
+        g_loss_logger.reset()
+        d_loss_logger.reset()
+
         for HR, LR in tqdm(train_loader, ncols=100, desc='[{}/{}]Training'.format(epoch, epochs)):
             HR, LR = HR.to(device), LR.to(device)
 
-            real_labels = torch.ones((HR.size(0), 1)).to(device)
-            fake_labels = torch.zeros((HR.size(0), 1)).to(device)
+            real_labels = torch.ones(HR.size(0)).to(device)
+            fake_labels = torch.zeros(HR.size(0)).to(device)
 
             # Train generator
             g_optimizer.zero_grad()
+
             fake_HR = generator(LR)
 
             score_real = discriminator(HR)
             score_fake = discriminator(fake_HR)
+
+            real_acc = real_acc_logger.add_batch(real_labels.cpu().numpy(), (score_real.detach().cpu().numpy() >= 0.5) * 1)
+            fake_acc = fake_acc_logger.add_batch(fake_labels.cpu().numpy(), (score_fake.detach().cpu().numpy() < 0.5) * 1)
+
             discriminator_rf = score_real - score_fake.mean()
             discriminator_fr = score_fake - score_real.mean()
 
-            adversarial_loss_rf = adversarial_loss(discriminator_rf, fake_labels)
-            adversarial_loss_fr = adversarial_loss(discriminator_fr, real_labels)
+            adversarial_loss_rf = adversarial_criterion(discriminator_rf, fake_labels)
+            adversarial_loss_fr = adversarial_criterion(discriminator_fr, real_labels)
             adversarial_loss = (adversarial_loss_fr + adversarial_loss_rf) / 2
 
-            perceptual_loss = perception_loss(HR, fake_HR)
-            content_loss = content_loss(fake_HR, HR)
+            perceptual_loss = perception_criterion(HR, fake_HR)
+            content_loss = content_criterion(fake_HR, HR)
 
-            generator_loss = adversarial_loss * self.adversarial_loss_factor + \
-                             perceptual_loss * self.perceptual_loss_factor + \
-                             content_loss * self.content_loss_factor
+            generator_loss = adversarial_loss * adversarial_loss_factor + \
+                             perceptual_loss * perceptual_loss_factor + \
+                             content_loss * content_loss_factor
 
             generator_loss.backward()
+
             g_optimizer.step()
 
             # Train discriminator
@@ -85,37 +118,63 @@ def train_gan(generator: nn.Module, discriminator: nn.Module, train_ds, val_ds, 
             discriminator_rf = score_real - score_fake.mean()
             discriminator_fr = score_fake - score_real.mean()
 
-            adversarial_loss_rf = adversarial_loss(discriminator_rf, real_labels)
-            adversarial_loss_fr = adversarial_loss(discriminator_fr, fake_labels)
+            adversarial_loss_rf = adversarial_criterion(discriminator_rf, real_labels)
+            adversarial_loss_fr = adversarial_criterion(discriminator_fr, fake_labels)
+
             discriminator_loss = (adversarial_loss_fr + adversarial_loss_rf) / 2
 
             discriminator_loss.backward()
+
             d_optimizer.step()
 
             g_scheduler.step()
             d_scheduler.step()
 
+            g_loss_logger.add_value(generator_loss.item())
+            d_loss_logger.add_value(discriminator_loss.item())
+
+            writer.add_scalar('Loss_mini/train_g', generator_loss.item(), mini_batch)
+            writer.add_scalar('Loss_mini/train_d', discriminator_loss.item(), mini_batch)
+            writer.add_scalar('Acc_mini/fake', fake_acc, mini_batch)
+            writer.add_scalar('Acc_mini/real', real_acc, mini_batch)
+
+            mini_batch += 1
+
+        writer.add_scalar('Loss/train_g', g_loss_logger.value(), epoch)
+        writer.add_scalar('Loss/train_d', d_loss_logger.value(), epoch)
+        writer.add_scalar('Acc/fake', fake_acc_logger.value(), epoch)
+        writer.add_scalar('Acc/real', real_acc_logger.value(), epoch)
+
         # Eval model
-        val_metrics = eval(generator, val_loader, nn.L1Loss(), test=False)
+        if epoch != 0 and epoch % val_intervals == 0:
+            val_metrics = eval(generator, val_loader, nn.L1Loss(), test=False)
 
-        if val_metrics['losses'].mean() <= best_val_loss:
-            best_val_loss = val_metrics['losses'].mean()
-            best_state_dict = deepcopy(generator.module.state_dict())
+            if val_metrics['losses'].mean() <= best_val_loss:
+                best_val_loss = val_metrics['losses'].mean()
+                if isinstance(generator, torch.nn.DataParallel):
+                    best_state_dict = deepcopy(generator.module.state_dict())
+                else:
+                    best_state_dict = deepcopy(generator.state_dict())
 
-            if checkpoint_path is not None:
-                print("Checkpoint saving state dict")
-                torch.save(best_state_dict, checkpoint_path)
+                if checkpoint_path is not None:
+                    best_path = checkpoint_path.replace('.pth', '_best.pth')
+                    print("Checkpoint saving state dict")
+                    torch.save(best_state_dict, best_path)
 
-        print('Val loss: {}'.format(val_metrics['losses'].mean()))
-        writer.add_scalar('Loss/val', val_metrics['losses'].mean(), epoch)
+            print('Val loss: {}'.format(val_metrics['losses'].mean()))
+            writer.add_scalar('Loss/val_g', val_metrics['losses'].mean(), epoch)
 
-        if ex is not None:
-            ex.log_scalar('val_loss', val_metrics['losses'].mean())
+            if ex is not None:
+                ex.log_scalar('val_loss', val_metrics['losses'].mean())
 
-    generator.module.load_state_dict(best_state_dict)
+        if isinstance(generator, torch.nn.DataParallel):
+            torch.save(deepcopy(generator.module.state_dict()), checkpoint_path)
+        else:
+            torch.save(deepcopy(generator.state_dict()), checkpoint_path)
+
     return generator
 
-def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_object, checkpoint_path=None, ex=None):
+def train(model, train_ds, val_ds, epochs, val_intervals,batch_size, opt_sch_callable, loss_object, checkpoint_path=None, ex=None):
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     model.to(device)
@@ -130,46 +189,58 @@ def train(model, train_ds, val_ds, epochs, batch_size, opt_sch_callable, loss_ob
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
 
     best_val_loss = float('inf')
-    best_state_dict = deepcopy(model.module.state_dict())
+    if isinstance(model, torch.nn.DataParallel):
+        best_state_dict = deepcopy(model.module.state_dict())
+    else:
+        best_state_dict = deepcopy(model.state_dict())
 
     writer = SummaryWriter()
 
     for epoch in range(epochs):
 
         model.train()
+        optimizer.zero_grad()
 
         for HR, LR in tqdm(train_loader, ncols=100, desc='[{}/{}]Training'.format(epoch, epochs)):
             HR, LR = HR.to(device), LR.to(device)
 
             out = model(LR)
-
             loss = loss_object(out, HR)
 
-            optimizer.zero_grad()
             loss.backward()
+
             optimizer.step()
 
         if scheduler is not None:
             scheduler.step()
 
         # Eval model
-        val_metrics = eval(model, val_loader, loss_object, test=False)
+        if epoch != 0 and epoch % val_intervals == 0:
 
-        if val_metrics['losses'].mean() <= best_val_loss:
-            best_val_loss = val_metrics['losses'].mean()
-            best_state_dict = deepcopy(model.module.state_dict())
+            val_metrics = eval(model, val_loader, loss_object, test=False)
 
-            if checkpoint_path is not None:
-                print("Checkpoint saving state dict")
-                torch.save(best_state_dict, checkpoint_path)
+            if val_metrics['losses'].mean() <= best_val_loss:
+                best_val_loss = val_metrics['losses'].mean()
+                if isinstance(model, torch.nn.DataParallel):
+                    best_state_dict = deepcopy(model.module.state_dict())
+                else:
+                    best_state_dict = deepcopy(model.state_dict())
 
-        print('Val loss: {}'.format(val_metrics['losses'].mean()))
-        writer.add_scalar('Loss/val', val_metrics['losses'].mean(), epoch)
+                if checkpoint_path is not None:
+                    print("Checkpoint saving state dict")
+                    torch.save(best_state_dict, checkpoint_path)
 
-        if ex is not None:
-            ex.log_scalar('val_loss', val_metrics['losses'].mean())
+            print('Val loss: {}'.format(val_metrics['losses'].mean()))
+            writer.add_scalar('Loss/val', val_metrics['losses'].mean(), epoch)
 
-    model.module.load_state_dict(best_state_dict)
+            if ex is not None:
+                ex.log_scalar('val_loss', val_metrics['losses'].mean())
+
+    if isinstance(model, torch.nn.DataParallel):
+        model.module.load_state_dict(best_state_dict)
+    else:
+        model.load_state_dict(best_state_dict)
+
     return model
 
 

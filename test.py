@@ -155,11 +155,12 @@ def get_psnr(pred, target):
 
 if __name__ == '__main__':
 
-    name = 'edsr' # abpn or dbpn
+    name = 'esrgan' # abpn or dbpn
     scale_factor = 4
     pretrained = True
     multi_gpu = True
     interp = False
+    is_gan = True
 
     save_dir = 'out/{}/{}x'.format(name.upper(),scale_factor)
     if interp:
@@ -167,7 +168,7 @@ if __name__ == '__main__':
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(os.path.join(save_dir, 'imgs'), exist_ok=True)
 
-    pretrained_path = '/home/victor/PycharmProjects/microscopy_sr/checkpoints/EDSR/EDSR_4x.pth'
+    pretrained_path = '/home/victor/PycharmProjects/microscopy_sr/checkpoints/ESRGAN/ESRGAN_4x.pth'
 
     train_ds, test_ds, val_ds = get_datasets('datasets/splits/czi',
                                              chanels=[2], scale_factor=scale_factor,
@@ -175,8 +176,10 @@ if __name__ == '__main__':
 
     test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=6)
 
-    model = get_net(name=name, chanels=1, scale_factor=scale_factor,
-                    base_pretrain=False, state_dict=pretrained_path)
+    if is_gan:
+        model, _ = get_net(name=name, chanels=1, scale_factor=scale_factor, state_dict=pretrained_path, is_gan=is_gan)
+    else:
+        model = get_net(name=name, chanels=1, scale_factor=scale_factor, state_dict=pretrained_path, is_gan=is_gan)
 
     if multi_gpu:
         model = nn.DataParallel(model)

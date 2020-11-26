@@ -10,36 +10,49 @@ from .MEMNET import MemNet
 from utils import load_state_dict_replace
 
 
-def get_abpn(chanels, scale_factor):
+def get_abpn(channels, scale_factor):
     if scale_factor == 4:
-        return ABPN_v5(chanels, 32)
+        return ABPN_v5(channels, 32)
     elif scale_factor == 8:
-        return ABPN_v5(chanels, 32, kernel=10, stride=8, scale_factor=8)
+        return ABPN_v5(channels, 32, kernel=10, stride=8, scale_factor=8)
     elif scale_factor == 16:
-        return ABPN_v3(chanels, 32)
+        return ABPN_v3(channels, 32)
 
 
-def get_dbpn(chanels, scale_factor):
+def get_dbpn(channels, scale_factor):
     if scale_factor == 16:
-        return DBPN16(num_channels=chanels, base_filter=64, feat=256, num_stages=7)
+        return DBPN16(num_channels=channels, base_filter=64, feat=256, num_stages=7)
     else:
-        return DBPN(num_channels=chanels, base_filter=64, feat=256, num_stages=7, scale_factor=scale_factor)
+        return DBPN(num_channels=channels, base_filter=64, feat=256, num_stages=7, scale_factor=scale_factor)
 
 
-def get_fsrcnn(chanels, scale_factor):
-    return FSRCNN(scale_factor=scale_factor, num_channels=chanels)
+def get_fsrcnn(channels, scale_factor):
+    return FSRCNN(scale_factor=scale_factor, num_channels=channels)
 
-def get_rcan(chanels, scale_factor):
-    return RCAN(scale_factor, chanels)
+def get_rcan(channels, scale_factor):
+    return RCAN(scale_factor, channels)
 
-def get_edsr(chanels, scale_factor):
-    return EDSR(scale=scale_factor, n_colors=chanels)
+def get_edsr(channels, scale_factor):
+    return EDSR(scale=scale_factor, n_colors=channels)
 
-def get_drrn(chanels, scale_factor):
-    return DRRN(num_chanels=chanels, scale_factor=scale_factor)
+def get_drrn(channels, scale_factor):
+    return DRRN(num_chanels=channels, scale_factor=scale_factor)
 
-def get_memnet(chanels, scale_factor):
-    return MemNet(in_channels=chanels, scale_factor=scale_factor)
+def get_memnet(channels, scale_factor):
+    return MemNet(in_channels=channels, scale_factor=scale_factor)
+
+def get_esrgan(channels, scale_factor):
+    from .ESRGAN import GeneratorRRDB, Discriminator
+
+    g = GeneratorRRDB(channels=channels, scale_factor=scale_factor)
+    d = Discriminator(num_in_ch=channels)
+    return g, d
+
+def get_rrdb(channels, scale_factor):
+    from .ESRGAN import GeneratorRRDB
+
+    g = GeneratorRRDB(channels=channels, scale_factor=scale_factor)
+    return g
 
 models = {
     'abpn': get_abpn,
@@ -48,7 +61,9 @@ models = {
     'rcan': get_rcan,
     'edsr': get_edsr,
     'drrn': get_drrn,
-    'memnet': get_memnet
+    'memnet': get_memnet,
+    'esrgan': get_esrgan,
+    'rrdb': get_rrdb
 }
 
 abpn_pretrained_paths = {
@@ -68,27 +83,14 @@ pretrained_paths = {
 }
 
 
-def get_net(name, chanels, scale_factor, base_pretrain=False, state_dict=None):
+def get_net(name, chanels, scale_factor, state_dict=None, is_gan=False):
 
-    if base_pretrain:
-        model = models[name](3, scale_factor)
+    model = models[name](chanels, scale_factor)
+    if is_gan:
+        model, discriminator = model
+        model.load_state_dict(torch.load(state_dict))
+        return model, discriminator
 
-        if name == 'dbpn':
-            if scale_factor == 16:
-                model.load_subnets_state_dicts()
-            else:
-                load_state_dict_replace(model, pretrained_paths[name][scale_factor], 'module.', '')
-        elif name == 'abpn':
-            if scale_factor == 8:
-                load_state_dict_replace(model, pretrained_paths[name][scale_factor], '', '', strict=False)
-            else:
-                load_state_dict_replace(model, pretrained_paths[name][scale_factor], 'module.', '', strict=True)
-
-        model.patch_input_dim(chanels)
-    else:
-        model = models[name](chanels, scale_factor)
-
-        if state_dict:
-            model.load_state_dict(torch.load(state_dict))
-
-    return model
+    if state_dict:
+        model.load_state_dict(torch.load(state_dict))
+        return model
