@@ -25,7 +25,7 @@ def conf():
     fold = 0
     multi_gpu = False
     gpu_id = 0
-    batch_size = 32
+    batch_size = 16
     chanels = [2]
     lr = 1e-4
     epochs = 2000
