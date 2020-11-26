@@ -88,9 +88,10 @@ def get_net(name, chanels, scale_factor, state_dict=None, is_gan=False):
     model = models[name](chanels, scale_factor)
     if is_gan:
         model, discriminator = model
-        model.load_state_dict(torch.load(state_dict))
+        if state_dict:
+            model.load_state_dict(torch.load(state_dict))
         return model, discriminator
 
     if state_dict:
         model.load_state_dict(torch.load(state_dict))
-        return model
+    return model

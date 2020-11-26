@@ -1,5 +1,6 @@
 from sacred import Experiment
 import numpy as np
+import torch
 from torch.optim import lr_scheduler, Adam, SGD
 from torch.utils.data import DataLoader
 from models.ABPN import *
@@ -19,22 +20,22 @@ ex.observers.append(FileStorageObserver('sacred_runs'))
 
 @ex.config
 def conf():
-    name = 'esrgan'
+    name = 'rcan'
     scale_factor = 4
     fold = 0
-    pretrained = True
     multi_gpu = False
-    batch_size = 16
+    gpu_id = 0
+    batch_size = 32
     chanels = [2]
     lr = 1e-4
     epochs = 2000
-    val_intervals = 10
-    preload = True
+    val_intervals = 5
+    preload = False
     patch_size = 32
-    lr_step = 500
-    is_gan = True
+    lr_step = 1000
+    is_gan = False
     psnr_oriented = False
-    state_dict = '/home/victor/PycharmProjects/microscopy_sr/checkpoints/RRDB/RRDB_4x.pth'
+    state_dict = None
 
 @ex.capture
 def opt_sch_ABPN(model, lr_step, lr):
@@ -65,10 +66,19 @@ def losses(device, name):
     else:
         return nn.L1Loss().to(device)
 
+@ex.capture
+def get_exp_id(_run):
+    return _run._id
+
 @ex.automain
-def main(name, scale_factor, pretrained, multi_gpu, batch_size, patch_size, chanels, epochs, val_intervals, preload, is_gan, psnr_oriented, state_dict, fold):
+def main(name, scale_factor, multi_gpu, batch_size, patch_size, chanels, epochs, val_intervals, preload, is_gan, psnr_oriented, state_dict, fold, gpu_id):
 
     torch.backends.cudnn.benchmark = True
+
+    if torch.cuda.is_available():
+        device = 'cuda:{}'.format(gpu_id)
+    else:
+        device = 'cpu'
 
     # Train phase
     train_ds, test_ds, val_ds = get_datasets(splits_dir='datasets/splits', fold_num=fold,
@@ -94,6 +104,7 @@ def main(name, scale_factor, pretrained, multi_gpu, batch_size, patch_size, chan
                           d_opt_sch=d_opt_sch,
                           losses=losses,
                           val_intervals=val_intervals,
+                          device=device,
                           checkpoint_path=save_name, ex=ex, epochs=epochs, psnr_oriented=psnr_oriented)
 
     else:
@@ -104,7 +115,18 @@ def main(name, scale_factor, pretrained, multi_gpu, batch_size, patch_size, chan
         if multi_gpu:
             model = nn.DataParallel(model)
         model = train(model, train_ds, val_ds, epochs=epochs, val_intervals=val_intervals, batch_size=batch_size,
-                      opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_name, ex=ex)
+                      opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), device=device, checkpoint_path=save_name, ex=ex)
+
+    # Save state dict in sacred exp dir
+    if isinstance(model, nn.DataParallel):
+        best_state_dict = model.module.state_dict()
+    else:
+        best_state_dict = model.state_dict()
+
+    exp_id = get_exp_id()
+    exp_dir = os.path.join('sacred_runs/', exp_id)
+    name = os.path.join(exp_dir, '{}_{}x.pth'.format(name.upper(), scale_factor))
+    torch.save(best_state_dict, name)
 
     # Test phase
     save_dir = 'out/{}/{}x'.format(name.upper(), scale_factor)
@@ -113,7 +135,7 @@ def main(name, scale_factor, pretrained, multi_gpu, batch_size, patch_size, chan
     os.makedirs(os.path.join(save_dir, 'imgs'), exist_ok=True)
     test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=8)
 
-    metrics = test(model, test_loader, patch_size=patch_size, scale_factor=scale_factor, test=True, save_dir=save_dir)
+    metrics = test(model, test_loader, patch_size=patch_size, scale_factor=scale_factor, device=device, test=True, save_dir=save_dir)
 
     mean_loss = np.asarray(metrics['losses']).mean()
     mean_ssim = np.asarray(metrics['ssim']).mean()

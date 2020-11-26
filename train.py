@@ -18,9 +18,7 @@ warnings.filterwarnings("ignore", module=".*aicsimageio")
 
 
 def train_gan(generator: nn.Module, discriminator: nn.Module, train_ds, val_ds, epochs, val_intervals, batch_size,
-             g_opt_sch, d_opt_sch, losses, psnr_oriented, checkpoint_path=None, ex=None):
-
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+             g_opt_sch, d_opt_sch, losses, psnr_oriented, device, checkpoint_path=None, ex=None):
 
     generator.to(device)
     discriminator.to(device)
@@ -174,9 +172,8 @@ def train_gan(generator: nn.Module, discriminator: nn.Module, train_ds, val_ds, 
 
     return generator
 
-def train(model, train_ds, val_ds, epochs, val_intervals,batch_size, opt_sch_callable, loss_object, checkpoint_path=None, ex=None):
+def train(model, train_ds, val_ds, epochs, val_intervals,batch_size, opt_sch_callable, loss_object, device, checkpoint_path=None, ex=None):
 
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
     optimizer, scheduler = opt_sch_callable(model)
@@ -217,7 +214,7 @@ def train(model, train_ds, val_ds, epochs, val_intervals,batch_size, opt_sch_cal
         # Eval model
         if epoch != 0 and epoch % val_intervals == 0:
 
-            val_metrics = eval(model, val_loader, loss_object, test=False)
+            val_metrics = eval(model, val_loader, loss_object, test=False, device=device)
 
             if val_metrics['losses'].mean() <= best_val_loss:
                 best_val_loss = val_metrics['losses'].mean()
@@ -244,10 +241,8 @@ def train(model, train_ds, val_ds, epochs, val_intervals,batch_size, opt_sch_cal
     return model
 
 
-def eval(model, loader, loss_object, test=False):
+def eval(model, loader, loss_object, device, test=False):
     model.eval()
-
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     all_losses = []
 
@@ -273,26 +268,3 @@ def opt_sch_ABPN(model):
     optimizer = Adam(model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8)
     scheduler = None
     return optimizer, scheduler
-
-
-if __name__ == '__main__':
-
-    name = 'dbpn' # abpn or dbpn
-    scale_factor = 4
-    pretrained = True
-    multi_gpu = True
-
-    train_ds, test_ds, val_ds = get_datasets('datasets/splits/czi',
-                                             chanels=[2], scale_factor=scale_factor, patch_size=32*scale_factor,
-                                             preload=True, augment=True)
-
-    model = get_net(name=name, chanels=1, scale_factor=scale_factor, base_pretrain=pretrained)
-
-    if multi_gpu:
-        model = nn.DataParallel(model)
-
-    save_path = 'checkpoints/{}'.format(name.upper())
-    save_name = os.path.join(save_path, '{}_{}x.pth'.format(name.upper(), scale_factor))
-    os.makedirs(save_path, exist_ok=True)
-
-    train(model, train_ds, val_ds, epochs=5000, batch_size=16, opt_sch_callable=opt_sch_ABPN, loss_object=nn.L1Loss(), checkpoint_path=save_name)

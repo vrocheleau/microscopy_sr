@@ -54,10 +54,9 @@ def save_fig(lr, hr, sr, sr_bic, sr_metrics, bic_metrics, factor, file_name):
     fig.savefig(file_name, dpi=300)
     plt.close(fig)
 
-def test(model, loader, patch_size, scale_factor, save_dir, test=False, interp=False):
+def test(model, loader, patch_size, scale_factor, save_dir, device, test=False, interp=False):
     model.eval()
 
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     loss_object = nn.L1Loss()
 
     all_losses = []
