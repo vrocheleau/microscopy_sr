@@ -29,7 +29,7 @@ def conf():
     lr = 1e-4
     epochs = 2000
     val_intervals = 5
-    preload = False
+    preload = True
     patch_size = 32
     lr_step = 1000
     is_gan = False

@@ -7,6 +7,7 @@ from .RCAN import RCAN
 from .EDSR import EDSR
 from .DRRN import DRRN
 from .MEMNET import MemNet
+from .ProSR import ProSR
 from utils import load_state_dict_replace
 
 
@@ -54,6 +55,9 @@ def get_rrdb(channels, scale_factor):
     g = GeneratorRRDB(channels=channels, scale_factor=scale_factor)
     return g
 
+def get_prosr(channels, scale_factor):
+    return ProSR(in_channels=channels, scale_factor=scale_factor)
+
 models = {
     'abpn': get_abpn,
     'dbpn': get_dbpn,
@@ -63,29 +67,17 @@ models = {
     'drrn': get_drrn,
     'memnet': get_memnet,
     'esrgan': get_esrgan,
-    'rrdb': get_rrdb
+    'rrdb': get_rrdb,
+    'prosr': get_prosr
 }
-
-abpn_pretrained_paths = {
-    4: 'pretrained/ABPN/ABPN_4x.pth',
-    8: 'pretrained/ABPN/ABPN_8x.pth',
-    16: 'pretrained/ABPN/ABPN_16x.pth'
-}
-
-dbpn_pretrained_paths = {
-    4: 'pretrained/DBPN/DBPN_x4.pth',
-    8: 'pretrained/DBPN/DBPN_x8.pth',
-}
-
-pretrained_paths = {
-    'abpn': abpn_pretrained_paths,
-    'dbpn': dbpn_pretrained_paths
-}
-
 
 def get_net(name, chanels, scale_factor, state_dict=None, is_gan=False):
 
+    if name not in models.keys():
+        raise ValueError('Invalid model name, select from: ', models.keys())
+
     model = models[name](chanels, scale_factor)
+
     if is_gan:
         model, discriminator = model
         if state_dict:
