@@ -15,6 +15,8 @@ def write_splits_csv(name, files):
 
 if __name__ == "__main__":
 
+    np.random.seed(0)
+
     n_splits = 3
 
     test_size = 0.25
