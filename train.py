@@ -49,6 +49,7 @@ def train_gan(generator: nn.Module, discriminator: nn.Module, train_ds, val_ds, 
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
 
     best_val_loss = float('inf')
+
     if isinstance(generator, torch.nn.DataParallel):
         best_state_dict = deepcopy(generator.module.state_dict())
     else:
@@ -193,10 +194,12 @@ def train(model, train_ds, val_ds, epochs, val_intervals,batch_size, opt_sch_cal
 
     writer = SummaryWriter()
 
+    mini_batch = 0
+
     for epoch in range(epochs):
 
         model.train()
-        optimizer.zero_grad()
+
 
         for HR, LR in tqdm(train_loader, ncols=100, desc='[{}/{}]Training'.format(epoch, epochs)):
             HR, LR = HR.to(device), LR.to(device)
@@ -204,25 +207,26 @@ def train(model, train_ds, val_ds, epochs, val_intervals,batch_size, opt_sch_cal
             out = model(LR)
             loss = loss_object(out, HR)
 
+            optimizer.zero_grad()
             loss.backward()
+            writer.add_scalar('Loss_mini/train_g', loss.item(), mini_batch)
 
             optimizer.step()
+
+            mini_batch += 1
 
         if scheduler is not None:
             scheduler.step()
 
         # Eval model
         if epoch != 0 and epoch % val_intervals == 0:
-
             val_metrics = eval(model, val_loader, loss_object, test=False, device=device)
-
             if val_metrics['losses'].mean() <= best_val_loss:
                 best_val_loss = val_metrics['losses'].mean()
                 if isinstance(model, torch.nn.DataParallel):
                     best_state_dict = deepcopy(model.module.state_dict())
                 else:
                     best_state_dict = deepcopy(model.state_dict())
-
                 if checkpoint_path is not None:
                     print("Checkpoint saving state dict")
                     torch.save(best_state_dict, checkpoint_path)

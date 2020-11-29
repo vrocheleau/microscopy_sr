@@ -16,7 +16,6 @@ from losses.esrgan import PerceptualLoss
 warnings.filterwarnings("ignore", module=".*aicsimageio")
 
 ex = Experiment()
-ex.observers.append(FileStorageObserver('sacred_runs'))
 
 @ex.config
 def conf():
@@ -36,6 +35,7 @@ def conf():
     is_gan = False
     psnr_oriented = False
     state_dict = None
+    seed = 0
 
 @ex.capture
 def opt_sch_ABPN(model, lr_step, lr):
@@ -68,12 +68,15 @@ def losses(device, name):
 
 @ex.capture
 def get_exp_id(_run):
-    return _run._id
+    return _run._id, _run.observers[0].basedir
+
 
 @ex.automain
 def main(name, scale_factor, multi_gpu, batch_size, patch_size, chanels, epochs, val_intervals, preload, is_gan, psnr_oriented, state_dict, fold, gpu_id):
 
     torch.backends.cudnn.benchmark = True
+
+    exp_id, basedir = get_exp_id()
 
     if torch.cuda.is_available():
         device = 'cuda:{}'.format(gpu_id)
@@ -123,10 +126,8 @@ def main(name, scale_factor, multi_gpu, batch_size, patch_size, chanels, epochs,
     else:
         best_state_dict = model.state_dict()
 
-    exp_id = get_exp_id()
-    exp_dir = os.path.join('sacred_runs/', exp_id)
-    name = os.path.join(exp_dir, '{}_{}x.pth'.format(name.upper(), scale_factor))
-    torch.save(best_state_dict, name)
+    exp_dir = os.path.join(basedir, exp_id)
+    torch.save(best_state_dict, os.path.join(exp_dir, '{}_{}x.pth'.format(name.upper(), scale_factor)))
 
     # Test phase
     save_dir = 'out/{}/{}x'.format(name.upper(), scale_factor)
